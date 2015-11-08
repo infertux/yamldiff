@@ -47,6 +47,16 @@ KEY_MAX_LEN      equ 256 ; assume YAML keys aren't over 256 byte long
     syscall ; THE END
 %endmacro
 
+%macro crash 1 ; void : exit_code
+    mov rax, SYS_WRITE
+    mov rdi, STDERR
+    mov rsi, crash_msg
+    mov rdx, crash_msg.len
+    syscall
+
+    exit %1
+%endmacro
+
 %macro debug 1 ; void : addr
     mov rsi, %1
     add [rsi], dword '0' ; convert to ASCII
@@ -78,8 +88,10 @@ KEY_MAX_LEN      equ 256 ; assume YAML keys aren't over 256 byte long
 %endmacro
 
 section .data
-    help_msg:  db ' <filename1> <filename2>', LF, LF
-               db 'Diff two YAML files based on their keys', 0
+    crash_msg: db  'Unexpected error! Aborting program.', LF
+    .len:      equ $-crash_msg
+    help_msg:  db  ' <filename1> <filename2>', LF, LF
+               db  'Diff two YAML files based on their keys', 0
 
 section .bss
     tmp_1    resb 1
@@ -216,7 +228,7 @@ _start:
     ret
 
 .read_key_err:
-    exit ax
+    crash ax
 
 .close_files:
     mov rdi, [f1_fd]
@@ -247,7 +259,7 @@ fclose: ; void : rdi
     jnz .err
     ret
 .err:
-    exit ax
+    crash ax
 
 fopen: ; rax : rdi
     mov rax, SYS_OPEN
@@ -259,7 +271,7 @@ fopen: ; rax : rdi
     js .err
     ret
 .err:
-    exit ax
+    crash ax
 
 ; like `print` but prints an extra \n
 print.n: ; void : rdi
