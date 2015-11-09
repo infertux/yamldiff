@@ -147,6 +147,7 @@ _start:
     mov al, [f1_key]
     or al, [f2_key]
     jz .close_files ; if both keys are null, we've hit EOF on both files
+
     mov edi, f1_key
     mov esi, f2_key
     mov ecx, KEY_MAX_LEN
@@ -159,7 +160,7 @@ _start:
     push ax
 
     cmp ax, 1
-    jnz .diff_f1_key ; don't print filenames if already done
+    jne .diff_f1_key ; don't print filenames if already done
 
 .print_filenames:
     mov [tmp_8], dword '--- '
@@ -198,24 +199,25 @@ _start:
 
     jmp .read_keys
 
-.read_key: ; void : rdi = FD, rsi = buffer, rdx = key
+.read_key: ; void : rdi = FD, rsi = file buffer, rdx = key buffer
     mov rcx, KEY_MAX_LEN
+
 .read_key_clear:
-    mov [rdx+rcx-1], byte 0
+    mov [rdx+rcx-1], byte 0 ; clear key buffer
     dec rcx
     jnz .read_key_clear
+
 .read_key_scan:
     fgetc
     je .read_key ; reset rcx and restart scan if EOL
 
     mov al, byte[rsi]
+    cmp al, ':' ; end of key?
+    je .read_key_until_eol
+
     mov [rdx+rcx], al ; copy key in buffer
     inc rcx
-
-    cmp [rsi], byte ':' ; end of key?
-    jne .read_key_scan
-
-    mov [rdx+rcx-1], byte 0 ; set last byte to NULL
+    jmp .read_key_scan
 
 .read_key_until_eol:
     ; seek forward until EOL or EOF in case there's another colon on this line
@@ -244,7 +246,7 @@ _start:
 
 ; Secondary routines below:
 
-help:
+help: ; void : rax
     mov rdi, rax
     call print
     mov rdi, help_msg
@@ -266,8 +268,7 @@ fopen: ; rax : rdi
     mov rsi, O_RDONLY
     syscall
 
-    ; check we got a valid (>= 0) FD (typically > 2 = STDERR)
-    test rax, rax
+    test rax, rax ; check we got a valid (>= 0) FD (typically > 2 = STDERR)
     js .err
     ret
 .err:
@@ -290,7 +291,7 @@ print: ; void : rdi
     mov rdi, STDOUT
     syscall
 
-    ; get direction flag
+    ; get direction flag (kinda messy)
     pushf
     pop ax
     push ax
